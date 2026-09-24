@@ -70,9 +70,11 @@ if ($versions.angle.mode -eq 'pinned') {
 # 3. Build. The binary cache (VCPKG_DEFAULT_BINARY_CACHE, restored by the workflow) makes a rebuild
 #    with unchanged versions take seconds.
 $vcpkg = Join-Path $vcpkgRoot 'vcpkg.exe'
+# A variable, not (Join-Path ...): PowerShell splits "--opt=(expr)" into two arguments.
+$triplets = Join-Path $repoRoot 'triplets'
 & $vcpkg install "angle:$triplet" `
   --overlay-ports=$overlay `
-  --overlay-triplets=(Join-Path $repoRoot 'triplets') `
+  --overlay-triplets=$triplets `
   --clean-after-build `
   --disable-metrics
 
