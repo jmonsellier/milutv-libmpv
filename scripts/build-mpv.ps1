@@ -84,7 +84,8 @@ $mesonArgs = @(
   '-Dlibpng:default_library=static',
   # HAVE_DXGI_DEBUG_D3D11: mpv only probes it when d3d11, egl-angle-win32 or vulkan is on, yet
   # vf_d3d11vpp.c (d3d-hwaccel) includes d3d11_helpers.h, which then redefines the SDK's GUID.
-  "-Dc_args=-I$AngleInclude,-DHAVE_DXGI_DEBUG_D3D11=1",
+  # A list literal: meson never splits a c_args string on commas. Forward slashes, no escapes.
+  "-Dc_args=['-I$($AngleInclude.Replace('\', '/'))', '-DHAVE_DXGI_DEBUG_D3D11=1']",
 
   # mpv: libmpv only, LGPL, OpenGL render API with the ANGLE interop and D3D11VA decoding.
   '-Dlibmpv=true', '-Dcplayer=false', '-Dtests=false', '-Dgpl=false',
