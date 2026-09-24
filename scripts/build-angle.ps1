@@ -72,6 +72,10 @@ if ($versions.angle.mode -eq 'pinned') {
 $vcpkg = Join-Path $vcpkgRoot 'vcpkg.exe'
 # A variable, not (Join-Path ...): PowerShell splits "--opt=(expr)" into two arguments.
 $triplets = Join-Path $repoRoot 'triplets'
+# The port's gni-to-cmake.py reads BUILD.gn files with the locale encoding (cp1252 on the runners),
+# and ANGLE's BUILD.gn files are UTF-8. vcpkg clears the environment of port builds, hence the keep.
+$env:PYTHONUTF8 = '1'
+$env:VCPKG_KEEP_ENV_VARS = (@($env:VCPKG_KEEP_ENV_VARS, 'PYTHONUTF8') | Where-Object { $_ }) -join ';'
 & $vcpkg install "angle:$triplet" `
   --overlay-ports=$overlay `
   --overlay-triplets=$triplets `
