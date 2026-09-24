@@ -1,0 +1,162 @@
+# Builds libmpv (LGPL v2.1+) and ANGLE for Windows x64 and arm64.
+#
+# - Run by hand (workflow_dispatch): builds both architectures and keeps the archives as workflow
+#   artifacts, nothing is published.
+# - Pushing a tag equal to "release" in versions.json (for example mpv-f9850ee-ff9.0.1-r1): builds,
+#   then publishes a GitHub release with both archives, the complete sources, the FFmpeg licence
+#   proof of each architecture and SHA256SUMS.
+#
+# The build steps follow the win32 job of mpv's own CI (.github/workflows/build.yml of mpv-player/mpv).
+name: build
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'mpv-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            os: windows-2025-vs2026
+          - arch: arm64
+            os: windows-11-arm
+    env:
+      CC: clang
+      CXX: clang++
+      CC_LD: lld-link
+      CXX_LD: lld-link
+      WINDRES: llvm-rc
+      # Under work/, which pack-sources.ps1 leaves out of the sources archive (no prebuilt ANGLE in it).
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\work\vcpkg-binary-cache
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Disable autocrlf
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
+      - uses: actions/checkout@v4
+
+      - name: Self-test the licence check
+        run: ./scripts/test-check-license.ps1
+
+      - name: Install WinGet on windows-11-arm
+        if: matrix.os == 'windows-11-arm'
+        run: |
+          Install-Module -Name Microsoft.WinGet.Client -Repository PSGallery -Force
+          Repair-WinGetPackageManager -Latest -Force
+
+      - name: Install meson and NASM
+        run: |
+          $meson = (Get-Content versions.json -Raw | ConvertFrom-Json).tools.meson
+          python -m pip install "meson==$meson" ninja
+          if ('${{ matrix.arch }}' -eq 'x64') {
+            winget install --accept-source-agreements --accept-package-agreements --silent NASM.NASM
+            'C:\Program Files\NASM' | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+          }
+
+      - name: Find Visual Studio
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Llvm.Clang -property installationPath
+          if (-not $vs) { throw 'No Visual Studio with the Clang component on this runner.' }
+          "VS=$vs" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
+      - name: Restore the vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-angle-${{ matrix.arch }}-${{ hashFiles('versions.json', 'triplets/**', 'scripts/build-angle.ps1') }}
+
+      - name: Build ANGLE (vcpkg)
+        run: |
+          New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          ./scripts/build-angle.ps1 -Arch ${{ matrix.arch }}
+          # What was built, for the release notes: in "port" mode, the port's ANGLE, not angle.commit.
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item work/angle-${{ matrix.arch }}/angle.json dist/angle-${{ matrix.arch }}.json
+
+      - name: Build libmpv
+        id: mpv
+        run: |
+          # Same PATH clean-up as mpv's CI: the clang of Visual Studio, not a stray LLVM or MinGW.
+          $env:PATH = ($env:PATH -split ';' | Where-Object { $_ -ne 'C:\Program Files\LLVM\bin' -and `
+                                                             $_ -ne 'C:\Program Files\CMake\bin' -and `
+                                                             $_ -ne 'C:\Strawberry\c\bin' }) -join ';'
+          Import-Module "$env:VS\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+          Enter-VsDevShell -VsInstallPath $env:VS -SkipAutomaticLocation -DevCmdArguments "-arch=${{ matrix.arch }} -host_arch=${{ matrix.arch }}"
+          ./scripts/build-mpv.ps1 -Arch ${{ matrix.arch }} -AngleInclude work/angle-${{ matrix.arch }}/include
+          ./scripts/package.ps1 -Arch ${{ matrix.arch }}
+
+      - name: Print the meson log
+        if: failure() && steps.mpv.outcome == 'failure'
+        run: Get-Content work/mpv/build/meson-logs/meson-log.txt -ErrorAction SilentlyContinue
+
+      - name: Archive the sources
+        if: matrix.arch == 'x64'
+        run: ./scripts/pack-sources.ps1
+
+      - name: Extract the licence proof
+        run: |
+          $release = (Get-Content versions.json -Raw | ConvertFrom-Json).release
+          Copy-Item "work/stage/milutv-libmpv-$release-${{ matrix.arch }}/ffmpeg-license.txt" "dist/ffmpeg-license-${{ matrix.arch }}.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: milutv-libmpv-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Check the tag against versions.json
+        run: |
+          $release = (Get-Content versions.json -Raw | ConvertFrom-Json).release
+          if ('${{ github.ref_name }}' -ne $release) {
+            throw "Tag ${{ github.ref_name }} does not match versions.json release $release."
+          }
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./scripts/release-notes.ps1 -Dist dist -OutFile release-notes.md
+          Push-Location dist
+          Get-ChildItem -File | Sort-Object Name | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)"
+          } | Set-Content -Encoding utf8 SHA256SUMS
+          Pop-Location
+          gh release create '${{ github.ref_name }}' dist/* --title '${{ github.ref_name }}' --notes-file release-notes.md
