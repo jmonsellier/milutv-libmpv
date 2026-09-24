@@ -43,21 +43,28 @@ New-Item -ItemType Directory -Force $overlay | Out-Null
 Copy-Item -Recurse (Join-Path $vcpkgRoot 'ports\angle') (Join-Path $overlay 'angle')
 $portfile = Join-Path $overlay 'angle\portfile.cmake'
 
+function Edit-PortFile([string]$Path, [System.Collections.IDictionary]$Replacements) {
+  $text = Get-Content $Path -Raw
+  foreach ($pattern in $Replacements.Keys) {
+    if ($text -notmatch $pattern) {
+      throw "The vcpkg angle port no longer has '$pattern' in $(Split-Path -Leaf $Path): update scripts/build-angle.ps1 for vcpkg $($versions.vcpkg.commit)."
+    }
+    $text = $text -replace $pattern, $Replacements[$pattern]
+  }
+  Set-Content -Path $Path -Value $text -NoNewline
+}
+
 if ($versions.angle.mode -eq 'pinned') {
-  $text = Get-Content $portfile -Raw
-  $replacements = [ordered]@{
+  Edit-PortFile $portfile ([ordered]@{
     'set\(ANGLE_COMMIT [0-9a-f]{40}\)'                  = "set(ANGLE_COMMIT $($versions.angle.commit))"
     'set\(ANGLE_VERSION [0-9]+\)'                       = "set(ANGLE_VERSION $($versions.angle.revision))"
     'set\(ANGLE_SHA512 [0-9a-f]{128}\)'                 = "set(ANGLE_SHA512 $($versions.angle.sha512))"
     'set\(ANGLE_THIRDPARTY_ZLIB_COMMIT [0-9a-f]{40}\)'  = "set(ANGLE_THIRDPARTY_ZLIB_COMMIT $($versions.angle.zlibCommit))"
-  }
-  foreach ($pattern in $replacements.Keys) {
-    if ($text -notmatch $pattern) {
-      throw "The vcpkg angle port no longer has '$pattern': update scripts/build-angle.ps1 for vcpkg $($versions.vcpkg.commit)."
-    }
-    $text = $text -replace $pattern, $replacements[$pattern]
-  }
-  Set-Content -Path $portfile -Value $text -NoNewline
+  })
+  # The pinned ANGLE needs C++20 (std::same_as in src/common/span.h); the port's build system says 17.
+  Edit-PortFile (Join-Path $overlay 'angle\cmake-buildsystem\CMakeLists.txt') ([ordered]@{
+    'set\(CMAKE_CXX_STANDARD 17\)' = 'set(CMAKE_CXX_STANDARD 20)'
+  })
   $manifestPath = Join-Path $overlay 'angle\vcpkg.json'
   $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
   $manifest.'version-string' = "milutv-$($versions.angle.revision)"
