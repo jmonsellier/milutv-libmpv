@@ -1,8 +1,8 @@
 # Proves, from the build itself, that the libmpv DLL is LGPL v2.1 or later:
 #   - FFmpeg's generated config.h has CONFIG_GPL 0, CONFIG_VERSION3 0, CONFIG_NONFREE 0 and
 #     FFMPEG_LICENSE "LGPL version 2.1 or later";
-#   - the DLL carries that same licence string (what avcodec_license() returns at run time) and no
-#     GPL one;
+#   - the DLL carries no GPL licence string (the LGPL one is usually dropped by the linker, since
+#     mpv never calls avcodec_license());
 #   - mpv was configured with gpl=false (build/config.h, HAVE_GPL 0).
 # It also checks that the pieces the Windows player needs were compiled in: the d3d11-egl interop
 # (zero-copy D3D11VA under ANGLE) and the d3d11vpp filter (GPU deinterlacing).
@@ -71,10 +71,14 @@ if (Test-Path $mpvConfigPath) {
 
 # The DLL itself.
 $ascii = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($Dll))
-$required = @('LGPL version 2.1 or later', 'd3d11-egl', 'd3d11vpp')
+$required = @('d3d11-egl', 'd3d11vpp')
 foreach ($s in $required) {
   if (-not $ascii.Contains($s)) { $failures.Add("The DLL does not contain '$s'.") }
 }
+# mpv never calls avcodec_license(), so the linker usually drops FFMPEG_LICENSE: its absence proves
+# nothing, config.h above is the proof. When present, it must be the LGPL one.
+$lgplString = 'LGPL version 2.1 or later'
+$lgplInDll = $ascii.Contains($lgplString)
 $forbidden = @('GPL version 2 or later', 'GPL version 3 or later', 'LGPL version 3 or later', 'nonfree and unredistributable')
 foreach ($s in $forbidden) {
   # None of these is a substring of 'LGPL version 2.1 or later'.
@@ -93,7 +97,8 @@ $report += @(
   "mpv features: $mpvFeatures"
   ''
   "Strings in $(Split-Path $Dll -Leaf): " + (($required | ForEach-Object { "'$_'" }) -join ', ') + ' present; ' +
-    (($forbidden | ForEach-Object { "'$_'" }) -join ', ') + ' absent.'
+    (($forbidden | ForEach-Object { "'$_'" }) -join ', ') + ' absent; ' +
+    "'$lgplString' " + $(if ($lgplInDll) { 'present.' } else { 'not linked in (mpv does not call avcodec_license()).' })
   ''
   'FFMPEG_CONFIGURATION (the meson options FFmpeg was configured with):'
   $configuration

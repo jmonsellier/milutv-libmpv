@@ -80,7 +80,8 @@ jobs:
           "VS=$vs" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
 
       - name: Restore the vcpkg binary cache
-        uses: actions/cache@v4
+        id: angle-cache
+        uses: actions/cache/restore@v4
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: vcpkg-angle-${{ matrix.arch }}-${{ hashFiles('versions.json', 'triplets/**', 'scripts/build-angle.ps1') }}
@@ -92,6 +93,15 @@ jobs:
           # What was built, for the release notes: in "port" mode, the port's ANGLE, not angle.commit.
           New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item work/angle-${{ matrix.arch }}/angle.json dist/angle-${{ matrix.arch }}.json
+
+      # Saved as soon as ANGLE is built (about 20 minutes), not at the end of the job, so that a
+      # failure further on does not throw it away.
+      - name: Save the vcpkg binary cache
+        if: steps.angle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: ${{ steps.angle-cache.outputs.cache-primary-key }}
 
       - name: Build libmpv
         id: mpv

@@ -37,6 +37,8 @@ function Invoke-Check([string]$Dir) {
 
 $cases = @(
   @{ Name = 'LGPL v2.1+ build passes'; Expect = $true; Dir = { New-FakeBuild } }
+  # mpv never calls avcodec_license(), so the linker drops FFMPEG_LICENSE (as in zhongfly's LGPL DLL).
+  @{ Name = 'LGPL v2.1+ DLL without the dead-stripped licence string passes'; Expect = $true; Dir = { New-FakeBuild -DllText 'd3d11-egl d3d11vpp' } }
   @{ Name = 'FFmpeg gpl fails'; Expect = $false; Dir = { New-FakeBuild -Ff @{ CONFIG_GPL = '1'; FFMPEG_LICENSE = '"GPL version 2 or later"' } } }
   @{ Name = 'FFmpeg version3 fails'; Expect = $false; Dir = { New-FakeBuild -Ff @{ CONFIG_VERSION3 = '1'; FFMPEG_LICENSE = '"LGPL version 3 or later"' } } }
   @{ Name = 'FFmpeg nonfree fails'; Expect = $false; Dir = { New-FakeBuild -Ff @{ CONFIG_NONFREE = '1' } } }

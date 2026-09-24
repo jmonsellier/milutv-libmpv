@@ -15,6 +15,8 @@ $versions = Get-Content (Join-Path $repoRoot 'versions.json') -Raw | ConvertFrom
 $WorkDir = Resolve-Path $WorkDir
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 $OutDir = Resolve-Path $OutDir
+# Windows' bsdtar, never a GNU tar found first on PATH (Git's), which reads "D:\..." as a remote host.
+$tar = Join-Path $env:SystemRoot 'System32\tar.exe'
 
 $name = "milutv-libmpv-$($versions.release)-sources"
 $stage = Join-Path $WorkDir "stage\$name"
@@ -30,7 +32,7 @@ Get-ChildItem $repoRoot -Force | Where-Object { $_.Name -notin 'work', 'dist', '
 
 # mpv and its subprojects, without VCS metadata or build directory.
 $tarMpv = Join-Path $stage 'mpv-and-subprojects.tar'
-tar -cf $tarMpv --exclude=mpv/build --exclude=.git -C $WorkDir mpv
+& $tar -cf $tarMpv --exclude=mpv/build --exclude=.git -C $WorkDir mpv
 
 # ANGLE: the port that built it, and the two sources it fetches (ANGLE itself and chromium's
 # third_party/zlib), downloaded here by commit rather than taken from vcpkg's download cache, which
@@ -58,5 +60,5 @@ Invoke-WebRequest "https://chromium.googlesource.com/chromium/src/third_party/zl
 
 $archive = Join-Path $OutDir "$name.tar.gz"
 Remove-Item $archive -ErrorAction SilentlyContinue
-tar -czf $archive -C (Join-Path $WorkDir 'stage') $name
+& $tar -czf $archive -C (Join-Path $WorkDir 'stage') $name
 Write-Output "Sources: $archive ($([math]::Round((Get-Item $archive).Length / 1MB, 1)) MB)"

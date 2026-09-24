@@ -79,6 +79,9 @@ $mesonArgs = @(
   '-Dffmpeg:default_library=static', '-Dlibass:default_library=static', '-Dlibplacebo:default_library=static',
   '-Dfreetype2:default_library=static', '-Dharfbuzz:default_library=static',
   '-Dfribidi:default_library=static', '-Dzlib:default_library=static',
+  # libass looks libpng up for its test programs only (disabled), but forcefallback builds it anyway:
+  # static, so that no png16-16.dll comes out next to mpv.
+  '-Dlibpng:default_library=static',
   # HAVE_DXGI_DEBUG_D3D11: mpv only probes it when d3d11, egl-angle-win32 or vulkan is on, yet
   # vf_d3d11vpp.c (d3d-hwaccel) includes d3d11_helpers.h, which then redefines the SDK's GUID.
   "-Dc_args=-I$AngleInclude,-DHAVE_DXGI_DEBUG_D3D11=1",
