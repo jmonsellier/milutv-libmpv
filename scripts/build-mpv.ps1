@@ -82,15 +82,16 @@ $mesonArgs = @(
   # libass looks libpng up for its test programs only (disabled), but forcefallback builds it anyway:
   # static, so that no png16-16.dll comes out next to mpv.
   '-Dlibpng:default_library=static',
-  # HAVE_DXGI_DEBUG_D3D11: mpv only probes it when d3d11, egl-angle-win32 or vulkan is on, yet
-  # vf_d3d11vpp.c (d3d-hwaccel) includes d3d11_helpers.h, which then redefines the SDK's GUID.
-  # A list literal: meson never splits a c_args string on commas. Forward slashes, no escapes.
-  "-Dc_args=['-I$($AngleInclude.Replace('\', '/'))', '-DHAVE_DXGI_DEBUG_D3D11=1']",
+  # A list literal (meson never splits a c_args string on commas); forward slashes, no escapes.
+  "-Dc_args=['-I$($AngleInclude.Replace('\', '/'))']",
 
   # mpv: libmpv only, LGPL, OpenGL render API with the ANGLE interop and D3D11VA decoding.
   '-Dlibmpv=true', '-Dcplayer=false', '-Dtests=false', '-Dgpl=false',
   '-Dgl=enabled', '-Dgl-win32=enabled', '-Degl-angle=enabled',
-  '-Degl-angle-lib=disabled', '-Degl-angle-win32=disabled', '-Dgl-dxinterop=disabled',
+  '-Degl-angle-lib=disabled', '-Dgl-dxinterop=disabled',
+  # egl-angle-win32 (mpv's own windowed ANGLE context, ANGLE loaded at run time) is the switch that
+  # compiles video/out/gpu/d3d11_helpers.c, which vf_d3d11vpp.c (d3d-hwaccel) needs.
+  '-Degl-angle-win32=enabled',
   '-Dd3d-hwaccel=enabled', '-Dd3d9-hwaccel=disabled', '-Dgl-dxinterop-d3d9=disabled',
   '-Dwasapi=enabled', '-Dwin32-smtc=enabled',
   '-Dd3d11=disabled', '-Dshaderc=disabled', '-Dspirv-cross=disabled',

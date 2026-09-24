@@ -18,7 +18,7 @@
     "webvtt", "srt", "ass"
   ],
   "protocol": [
-    "file", "http", "https", "httpproxy", "tcp", "tls", "crypto", "data"
+    "file", "http", "https", "httpproxy", "tcp", "tls", "crypto", "data", "udp"
   ],
   "hwaccel": [
     "h264_d3d11va", "h264_d3d11va2",
