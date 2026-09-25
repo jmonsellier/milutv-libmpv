@@ -109,10 +109,10 @@ if (-not (Test-Path (Join-Path $include 'EGL\eglext_angle.h'))) {
 }
 Copy-Item (Join-Path $installed 'share\angle\copyright') (Join-Path $OutDir 'LICENSE.ANGLE')
 
-# The version string ANGLE reports ("2.1.<revision> git hash <commit>"), read back from the DLL.
+# The version string ANGLE reports ("2.1.<revision> git hash: <commit>"), read back from the DLL.
 $bytes = [IO.File]::ReadAllBytes((Join-Path $bin 'libGLESv2.dll'))
 $ascii = [Text.Encoding]::ASCII.GetString($bytes)
-$match = [regex]::Match($ascii, '2\.1\.[0-9]+ git hash [0-9a-f]+')
+$match = [regex]::Match($ascii, '2\.1\.[0-9]+ git hash: [0-9a-f]+')
 $portVersion = (Get-Content (Join-Path $overlay 'angle\vcpkg.json') -Raw | ConvertFrom-Json).'version-string'
 [ordered]@{
   mode          = $versions.angle.mode
