@@ -44,12 +44,24 @@ $angleCommit = [regex]::Match($portfile, 'set\(ANGLE_COMMIT ([0-9a-f]{40})\)').G
 $angleSha512 = [regex]::Match($portfile, 'set\(ANGLE_SHA512 ([0-9a-f]{128})\)').Groups[1].Value
 $zlibCommit = [regex]::Match($portfile, 'set\(ANGLE_THIRDPARTY_ZLIB_COMMIT ([0-9a-f]{40})\)').Groups[1].Value
 if (-not $angleCommit -or -not $angleSha512 -or -not $zlibCommit) { throw 'Cannot read the ANGLE and zlib commits from the port.' }
+# chromium.googlesource.com drops connections now and then (HTTP 502, reset): retry, whatever the
+# error (Invoke-WebRequest -MaximumRetryCount only retries on an HTTP status).
+function Get-Download([string]$Uri, [string]$OutFile) {
+  for ($attempt = 1; ; $attempt++) {
+    try { Invoke-WebRequest $Uri -OutFile $OutFile; return }
+    catch {
+      if ($attempt -ge 5) { throw }
+      Write-Warning "Download of $Uri failed (attempt $attempt): $($_.Exception.Message)"
+      Start-Sleep -Seconds (15 * $attempt)
+    }
+  }
+}
 $angleTar = Join-Path $stage "angle\angle-$angleCommit.tar.gz"
-Invoke-WebRequest "https://github.com/google/angle/archive/$angleCommit.tar.gz" -OutFile $angleTar
+Get-Download "https://github.com/google/angle/archive/$angleCommit.tar.gz" $angleTar
 $actual = (Get-FileHash $angleTar -Algorithm SHA512).Hash.ToLowerInvariant()
 if ($actual -ne $angleSha512) { throw "ANGLE source SHA-512 is $actual, the port expects $angleSha512." }
-Invoke-WebRequest "https://chromium.googlesource.com/chromium/src/third_party/zlib/+archive/$zlibCommit.tar.gz" `
-  -OutFile (Join-Path $stage "angle\chromium-third_party-zlib-$zlibCommit.tar.gz")
+Get-Download "https://chromium.googlesource.com/chromium/src/third_party/zlib/+archive/$zlibCommit.tar.gz" `
+  (Join-Path $stage "angle\chromium-third_party-zlib-$zlibCommit.tar.gz")
 @(
   "vcpkg $($versions.vcpkg.repository) @ $($versions.vcpkg.commit), port files in vcpkg-port/"
   "ANGLE https://github.com/google/angle @ $angleCommit (SHA-512 checked against the port)"
