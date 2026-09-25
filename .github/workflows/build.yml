@@ -79,12 +79,19 @@ jobs:
           if (-not $vs) { throw 'No Visual Studio with the Clang component on this runner.' }
           "VS=$vs" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
 
+      # vcpkg puts the compiler's hash in every package ABI, and a runner image update (several can
+      # be live at once) changes the compiler: without the image version in the key, the restored
+      # cache matches nothing and, being a key hit, is never saved again.
+      - name: Read the runner image version
+        id: image
+        run: '"version=$env:ImageVersion" | Out-File -Append -Encoding utf8 $env:GITHUB_OUTPUT'
+
       - name: Restore the vcpkg binary cache
         id: angle-cache
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
-          key: vcpkg-angle-${{ matrix.arch }}-${{ hashFiles('versions.json', 'triplets/**', 'scripts/build-angle.ps1') }}
+          key: vcpkg-angle-${{ matrix.arch }}-${{ steps.image.outputs.version }}-${{ hashFiles('versions.json', 'triplets/**', 'scripts/build-angle.ps1') }}
 
       - name: Build ANGLE (vcpkg)
         run: |
