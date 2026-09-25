@@ -2,8 +2,8 @@
 #
 # versions.json "angle.mode":
 #   pinned : the vcpkg port, re-pointed at angle.commit (the ANGLE the player prototype validated
-#            zero-copy decoding with). The port files (build system, patches) stay those of the
-#            pinned vcpkg commit.
+#            zero-copy decoding with). The port files (build system, patches) are those of the
+#            pinned vcpkg commit, except the C++ standard, raised to 20 for this ANGLE.
 #   port   : the vcpkg port as it is at the pinned vcpkg commit, if the pinned ANGLE does not build.
 #
 # Output: <OutDir>\bin (DLLs, PDBs), <OutDir>\include (EGL and KHR headers only, so that mpv never

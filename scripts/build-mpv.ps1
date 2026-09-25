@@ -61,7 +61,7 @@ Write-GitWrap 'libass' $versions.libass.repository $versions.libass.tag @()
 
 # 3. FFmpeg allow-list (see ffmpeg-components.json).
 $ffmpegArgs = @()
-$groups = @{ decoder = 'decoders'; parser = 'parsers'; demuxer = 'demuxers'; protocol = 'protocols'; hwaccel = 'hwaccels' }
+$groups = [ordered]@{ decoder ='decoders'; parser = 'parsers'; demuxer = 'demuxers'; protocol = 'protocols'; hwaccel = 'hwaccels' }
 foreach ($kind in $groups.Keys) {
   $ffmpegArgs += "-Dffmpeg:$($groups[$kind])=disabled"
   foreach ($name in $components.$kind) { $ffmpegArgs += "-Dffmpeg:${name}_$kind=enabled" }

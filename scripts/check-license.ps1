@@ -16,6 +16,10 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+# Absolute: the config.h path printed in the proof is made relative to $BuildDir, and .NET file APIs
+# resolve relative paths against the process directory, not PowerShell's current location.
+$BuildDir = (Resolve-Path $BuildDir).Path.TrimEnd('\', '/')
+$Dll = (Resolve-Path $Dll).Path
 
 function Get-Define([string]$Text, [string]$Name) {
   $m = [regex]::Match($Text, "(?m)^#define $Name (.+?)\s*$")

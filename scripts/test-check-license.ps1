@@ -31,7 +31,10 @@ function Invoke-Check([string]$Dir) {
     & $check -BuildDir (Join-Path $Dir 'build') -Dll (Join-Path $Dir 'libmpv-2.dll') -OutFile (Join-Path $Dir 'proof.txt') | Out-Null
     return $true
   } catch {
-    return $false
+    # Only the licence verdict counts as a failure; a broken script or bad parameter must not pass
+    # for an expected rejection.
+    if ($_.Exception.Message -like 'Licence check failed:*') { return $false }
+    throw
   }
 }
 

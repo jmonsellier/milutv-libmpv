@@ -137,6 +137,8 @@ $manifest = [ordered]@{
   subprojects = $subprojectRevisions
   angle       = Get-Content (Join-Path $angle 'angle.json') -Raw | ConvertFrom-Json
   toolchain   = [ordered]@{
+    # The runner image fixes the Visual Studio, SDK and clang versions (empty outside GitHub Actions).
+    image = $env:ImageVersion
     clang = (clang --version | Select-Object -First 1)
     meson = (meson --version)
   }
